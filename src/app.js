@@ -16,6 +16,9 @@ import { errorHandler } from './middleware/errorHandler.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust Voroa's reverse proxy for accurate IP rate limiting
+app.set('trust proxy', 1);
+
 // ─── Security & Middleware ────────────────────────────────────────────────────
 // 1. Logger for debugging
 app.use((req, res, next) => {
