@@ -1,81 +1,96 @@
 import { Router } from 'express';
 import multer from 'multer';
-import multerS3 from 'multer-s3';
-import { S3Client } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
+import sharp from 'sharp';
 
 const router = Router();
 
-// 1. Configure Local Disk Storage (Fallback / Local Dev)
-const localStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = path.join(process.cwd(), 'uploads');
-    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
-    cb(null, uploadPath);
+// S3 Client Setup
+const s3 = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-1',
+  endpoint: process.env.AWS_ENDPOINT_URL_S3,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
   },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${randomUUID()}${ext}`);
-  }
+  forcePathStyle: true, 
 });
 
-// 2. Configure S3 Storage (Neon Object Storage)
-let s3Storage = null;
-if (process.env.USE_CLOUD_STORAGE === 'true') {
-  const s3 = new S3Client({
-    region: process.env.AWS_REGION || 'us-east-1',
-    endpoint: process.env.AWS_ENDPOINT_URL_S3,
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-    },
-    // Required for S3 compatible providers to prevent subdomain routing issues
-    forcePathStyle: true, 
-  });
-
-  s3Storage = multerS3({
-    s3: s3,
-    bucket: process.env.AWS_S3_BUCKET || 'default',
-    // acl: 'public-read', // Uncomment if Neon requires explicit ACL for public reads
-    metadata: function (req, file, cb) {
-      cb(null, { fieldName: file.fieldname });
-    },
-    key: function (req, file, cb) {
-      const ext = path.extname(file.originalname);
-      cb(null, `uploads/${randomUUID()}${ext}`);
-    }
-  });
-}
-
-// 3. Initialize Multer dynamically based on environment flag
+// Use MemoryStorage so we can process files with Sharp before saving
 const upload = multer({
-  storage: process.env.USE_CLOUD_STORAGE === 'true' && s3Storage ? s3Storage : localStorage,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
-router.post('/', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded.' });
+router.post('/', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded.' });
+    }
+
+    let fileBuffer = req.file.buffer;
+    let filename = randomUUID();
+    let mimeType = req.file.mimetype;
+    let ext = path.extname(req.file.originalname).toLowerCase();
+    
+    // Check if image (excluding SVGs and GIFs which sharp can break or freeze on)
+    const isImage = mimeType.startsWith('image/') && !['image/svg+xml', 'image/gif'].includes(mimeType);
+
+    // Compress with Sharp if it's an image
+    if (isImage) {
+      fileBuffer = await sharp(req.file.buffer)
+        .resize({ width: 1080, withoutEnlargement: true }) // Max width 1080px
+        .webp({ quality: 80 }) // Convert to WebP format with 80% quality
+        .toBuffer();
+      
+      ext = '.webp';
+      mimeType = 'image/webp';
+    }
+
+    filename = `${filename}${ext}`;
+
+    let fileUrl;
+
+    if (process.env.USE_CLOUD_STORAGE === 'true') {
+      // 1. Upload to Neon S3
+      const bucketName = process.env.AWS_S3_BUCKET || 'default';
+      const key = `uploads/${filename}`;
+      
+      await s3.send(new PutObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+        Body: fileBuffer,
+        ContentType: mimeType
+      }));
+
+      // Build the S3 URL
+      const baseEndpoint = (process.env.AWS_ENDPOINT_URL_S3 || '').replace(/\/$/, "");
+      fileUrl = `${baseEndpoint}/${bucketName}/${key}`;
+    } else {
+      // 2. Save locally
+      const uploadDir = path.join(process.cwd(), 'uploads');
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+      
+      const filePath = path.join(uploadDir, filename);
+      fs.writeFileSync(filePath, fileBuffer);
+      
+      const backendUrl = `http://localhost:${process.env.PORT || 5005}`;
+      fileUrl = `${backendUrl}/uploads/${filename}`;
+    }
+
+    res.status(201).json({ 
+      message: 'File uploaded successfully',
+      url: fileUrl,
+      originalName: req.file.originalname
+    });
+
+  } catch (error) {
+    console.error("Upload error:", error);
+    res.status(500).json({ error: 'Internal server error during upload.' });
   }
-  
-  let fileUrl;
-  
-  // If uploaded to S3, multer-s3 automatically attaches the full URL to `req.file.location`
-  if (process.env.USE_CLOUD_STORAGE === 'true' && req.file.location) {
-    fileUrl = req.file.location;
-  } else {
-    // If local storage, build the backend URL
-    const backendUrl = `http://localhost:${process.env.PORT || 5005}`;
-    fileUrl = `${backendUrl}/uploads/${req.file.filename}`;
-  }
-  
-  res.status(201).json({ 
-    message: 'File uploaded successfully',
-    url: fileUrl,
-    originalName: req.file.originalname
-  });
 });
 
 export default router;
