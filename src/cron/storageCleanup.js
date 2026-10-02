@@ -108,7 +108,13 @@ export function initCronJobs() {
   // Run at 03:00 AM every day
   cron.schedule('0 3 * * *', cleanupStorage);
   console.log('[Cron] Storage cleanup job scheduled for 03:00 AM daily.');
-  
-  // Optionally, we can run it once on startup (commented out for safety)
-  // cleanupStorage();
+}
+
+// If this file is run directly via the command line (e.g., by Voroa Scheduled Tasks)
+import { fileURLToPath } from 'url';
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  cleanupStorage().then(() => {
+    console.log('[Cron] Standalone execution completed.');
+    process.exit(0);
+  });
 }
