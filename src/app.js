@@ -12,6 +12,7 @@ import tripsRoutes from './modules/trips/trips.routes.js';
 import invitationsRoutes from './modules/invitations/invitations.routes.js';
 import uploadRoutes from './modules/upload/upload.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { initCronJobs } from './cron/storageCleanup.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -79,6 +80,9 @@ app.use(errorHandler);
 // ─── Start Server ─────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
+  
+  // Initialize Background Jobs
+  initCronJobs();
 });
 
 export default app;
