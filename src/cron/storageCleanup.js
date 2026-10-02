@@ -105,9 +105,13 @@ async function cleanupStorage() {
 
 // Export a function to initialize the cron job
 export function initCronJobs() {
-  // Run at 03:00 AM every day
-  cron.schedule('0 3 * * *', cleanupStorage);
-  console.log('[Cron] Storage cleanup job scheduled for 03:00 AM daily.');
+  if (process.env.RUN_INTERNAL_CRON === 'true') {
+    // Run at 03:00 AM every day
+    cron.schedule('0 3 * * *', cleanupStorage);
+    console.log('[Cron] Storage cleanup job scheduled for 03:00 AM daily.');
+  } else {
+    console.log('[Cron] Internal cron disabled. Assuming external execution (e.g. Voroa Scheduled Tasks).');
+  }
 }
 
 // If this file is run directly via the command line (e.g., by Voroa Scheduled Tasks)
