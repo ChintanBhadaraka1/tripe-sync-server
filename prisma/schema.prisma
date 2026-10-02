@@ -70,6 +70,7 @@ model Trip {
   rentalDetails RentalDetail[]
   documents   TripDocument[]
   sharedUserDocs SharedUserDocument[]
+  itineraryDays ItineraryDay[]
 
   @@index([createdById])
   @@map("trips")
@@ -359,3 +360,51 @@ model SharedUserDocument {
   @@map("shared_user_documents")
 }
 
+// ─── Itinerary & Map View (Phase 7) ──────────────────────────────────────────
+
+model ItineraryDay {
+  id        String   @id @default(cuid())
+  tripId    String   @map("trip_id")
+  date      DateTime
+  dayNumber Int      @map("day_number")
+
+  trip      Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  items     ItineraryItem[]
+
+  @@unique([tripId, date])
+  @@unique([tripId, dayNumber])
+  @@index([tripId])
+  @@map("itinerary_days")
+}
+
+model ItineraryItem {
+  id        String   @id @default(cuid())
+  dayId     String   @map("day_id")
+  title     String
+  time      DateTime?
+  type      String   // hotel, travel, activity, food, other
+  notes     String?
+  photoUrl  String?  @map("photo_url")
+  sortOrder Int      @default(0) @map("sort_order")
+
+  // Map & Location Fields
+  placeName String?  @map("place_name")
+  address   String?
+  latitude  Decimal? @db.Decimal(9, 6)
+  longitude Decimal? @db.Decimal(9, 6)
+  mapLink   String?  @map("map_link")
+
+  // Travel Routing Fields (Optional for lines between cities)
+  fromLat   Decimal? @map("from_lat") @db.Decimal(9, 6)
+  fromLng   Decimal? @map("from_lng") @db.Decimal(9, 6)
+  toLat     Decimal? @map("to_lat") @db.Decimal(9, 6)
+  toLng     Decimal? @map("to_lng") @db.Decimal(9, 6)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  day       ItineraryDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@index([dayId])
+  @@map("itinerary_items")
+}
