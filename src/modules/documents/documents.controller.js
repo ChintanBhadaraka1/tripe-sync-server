@@ -4,6 +4,7 @@ import {
   deleteTripDocument,
   createPersonalDocument,
   getPersonalDocuments,
+  renamePersonalDocument,
   deletePersonalDocument,
   shareDocumentToTrip,
   unshareDocumentFromTrip
@@ -64,6 +65,13 @@ export async function httpGetPersonalDocuments(req, res, next) {
   try {
     const docs = await getPersonalDocuments(req.user.id);
     res.json({ docs });
+  } catch (err) { next(err); }
+}
+
+export async function httpUpdatePersonalDocument(req, res, next) {
+  try {
+    const doc = await renamePersonalDocument(req.user.id, req.params.docId, req.body.title);
+    res.json({ message: 'Personal document renamed', doc });
   } catch (err) { next(err); }
 }
 

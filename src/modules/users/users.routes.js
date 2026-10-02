@@ -4,6 +4,7 @@ import { getProfile, updateProfile, getDashboardStatsHandler } from './users.con
 import {
   httpCreatePersonalDocument,
   httpGetPersonalDocuments,
+  httpUpdatePersonalDocument,
   httpDeletePersonalDocument
 } from '../documents/documents.controller.js';
 
@@ -24,6 +25,7 @@ router.patch('/me', updateProfile);
 // Personal Documents
 router.post('/me/documents', httpCreatePersonalDocument);
 router.get('/me/documents', httpGetPersonalDocuments);
+router.patch('/me/documents/:docId', httpUpdatePersonalDocument);
 router.delete('/me/documents/:docId', httpDeletePersonalDocument);
 
 export default router;

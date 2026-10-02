@@ -23,6 +23,7 @@ import {
 import transactionsRoutes from '../transactions/transactions.routes.js';
 import balancesRoutes from '../balances/balances.routes.js';
 import logisticsRoutes from '../logistics/logistics.routes.js';
+import itineraryRoutes from '../itinerary/itinerary.routes.js';
 import documentsRoutes from '../documents/documents.routes.js';
 
 const router = Router();
@@ -62,6 +63,9 @@ router.use('/:tripId/logistics', requireTripMember, logisticsRoutes);
 
 // ─── Documents ───────────────────────────────────────────────────────────────
 router.use('/:tripId/documents', requireTripMember, documentsRoutes);
+
+// ─── Itinerary ───────────────────────────────────────────────────────────────
+router.use('/:tripId/itinerary', itineraryRoutes); // requireTripMember is inside itineraryRoutes
 
 // ─── Share code regeneration (owner only) ────────────────────────────────────
 router.post('/:tripId/regenerate-code', requireTripMember, requireTripOwner, httpRegenerateShareCode);

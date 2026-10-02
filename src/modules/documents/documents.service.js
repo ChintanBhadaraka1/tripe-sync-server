@@ -46,6 +46,19 @@ export async function deleteTripDocument(tripId, docId, userId) {
 
 // ─── Personal Documents ───
 
+export async function renamePersonalDocument(userId, docId, title) {
+  if (typeof title !== 'string' || !title.trim()) throw createError(400, 'A document name is required.');
+  if (title.trim().length > 120) throw createError(400, 'Document names must be 120 characters or fewer.');
+
+  const doc = await prisma.userDocument.findUnique({ where: { id: docId } });
+  if (!doc || doc.userId !== userId) throw createError(404, 'Document not found.');
+
+  return prisma.userDocument.update({
+    where: { id: docId },
+    data: { title: title.trim() }
+  });
+}
+
 export async function createPersonalDocument(userId, data) {
   if (!data.title || !data.fileUrl) throw createError(400, 'Title and fileUrl are required.');
   return prisma.userDocument.create({
